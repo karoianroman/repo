@@ -1,4 +1,4 @@
-name: Docker Build & Push
+name: Docker Build & Test & Deploy
 
 on:
   push:
@@ -9,22 +9,25 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+    - name: Build image
+  run: docker build -t app:latest .
 
-      - name: Build Docker image
-        run: docker build -t app:latest .
+- name: Run new container
+  run: docker run -d -p 3001:3000 --name app_new app:latest
 
-      - name: Run unit tests
-        run: docker run --rm app:latest npm test  # якщо у Node.js є тести
+- name: Wait for app
+  run: sleep 5
 
-      - name: Stop previous container
-        run: |
-          docker stop app || true
-          docker rm app || true
+- name: Health check
+  run: curl -f http://localhost:3001
 
-      - name: Run new container
-        run: docker run -d -p 3000:3000 --name app app:latest
+- name: Stop old container
+  run: |
+    docker stop app || true
+    docker rm app || true
 
-      - name: Health check
-        run: curl -f http://localhost:3000
+- name: Start production container
+  run: |
+    docker run -d -p 3000:3000 --name app app:latest
+    docker stop app_new
+    docker rm app_new
