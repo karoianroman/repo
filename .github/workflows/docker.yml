@@ -31,3 +31,8 @@ jobs:
         docker run -d -p 3000:3000 --name app app:latest
         docker stop app_new
         docker rm app_new
+        
+    - name: Stop new container
+      run: |
+        docker stop app_new || true
+        docker rm app_new || true
