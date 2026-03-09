@@ -11,6 +11,8 @@ jobs:
     steps:
     - name: Build image
       run: docker build -t app:latest .
+    - name: Run unit tests
+      run: docker run --rm app:latest npm test  # якщо у Node.js є тести
 
     - name: Run new container
       run: docker run -d -p 3001:3000 --name app_new app:latest
