@@ -18,5 +18,10 @@ jobs:
       - name: Build Docker image
         run: docker build -t karoianroman/app:latest .
 
-      - name: Push Docker image
-        run: docker push karoianroman/app:latest
+      - name: Stop previous container
+        run: |
+          docker stop myapp || true
+          docker rm myapp || true
+
+      - name: Run new container
+        run: docker run -d -p 3000:3000 --name myapp myapp:latest
