@@ -20,8 +20,8 @@ jobs:
 
       - name: Stop previous container
         run: |
-          docker stop myapp || true
-          docker rm myapp || true
+          docker stop app || true
+          docker rm app || true
 
       - name: Run new container
-        run: docker run -d -p 3000:3000 --name myapp myapp:latest
+        run: docker run -d -p 3000:3000 --name app app:latest
