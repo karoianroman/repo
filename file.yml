@@ -1,0 +1,38 @@
+name: Docker Build & Test & Deploy
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: self-hosted
+
+    steps:
+    - name: Build image
+      run: docker build -t app:latest .
+
+    - name: Run new container
+      run: docker run -d -p 3001:3000 --name app_new app:latest
+
+    - name: Wait for app
+      run: sleep 5
+
+    - name: Health check
+      run: curl -f http://localhost:3001
+
+    - name: Stop old container
+      run: |
+        docker stop app || true
+        docker rm app || true
+
+    - name: Start production container
+      run: |
+        docker run -d -p 3000:3000 --name app app:latest
+        docker stop app_new
+        docker rm app_new
+        
+    - name: Stop new container
+      run: |
+        docker stop app_new || true
+        docker rm app_new || true
