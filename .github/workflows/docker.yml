@@ -17,8 +17,13 @@ jobs:
       
     - name: Run unit tests
       run: docker run --rm app:latest npm test  # якщо у Node.js є тести
+      
+    - name: Remove old test container
+      run: |
+        docker stop app_new || true
+        docker rm app_new || true
 
-    - name: Run new container
+    - name: Run new test container
       run: docker run -d -p 3001:3000 --name app_new app:latest
 
     - name: Wait for app
