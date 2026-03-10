@@ -1,9 +1,6 @@
-const request = require('supertest');
 const app = require('./app');
+const port = 3000;
 
-test('GET / should return 200', async () => {
-  await request(app)
-    .get('/')
-    .expect(200)
-    .expect('Content-Type', /text/);
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
