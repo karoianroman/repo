@@ -1,31 +1,57 @@
 pipeline {
     agent any
 
-    stages {
+    environment {
+        DOCKER_IMAGE = "karoianroman/app"        // твій DockerHub образ
+        CONTAINER_NAME = "app_container"    // імʼя контейнера
+        PORT = "3000"                          // порт для запуску
+    }
 
+    stages {
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Build') {
+        stage('Build Docker Image') {
             steps {
-                sh 'docker build -t app .'
+                sh "docker build -t ${DOCKER_IMAGE}:latest ."
             }
         }
 
-        stage('Test') {
+        stage('Login to DockerHub') {
             steps {
-                sh 'echo Running tests'
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub',  // ID облікових даних Jenkins
+                    usernameVariable: 'USERNAME',
+                    passwordVariable: 'PASSWORD'
+                )]) {
+                    sh "echo $PASSWORD | docker login -u $USERNAME --password-stdin"
+                }
             }
         }
 
-        stage('Deploy') {
+        stage('Push Docker Image') {
             steps {
-                sh 'docker rm -f app || true'
-                sh 'docker run -d -p 3000:3000 --name myapp app'
+                sh "docker push ${DOCKER_IMAGE}:latest"
             }
+        }
+
+        stage('Deploy Container') {
+            steps {
+                sh "docker rm -f ${CONTAINER_NAME} || true"
+                sh "docker run -d --name ${CONTAINER_NAME} -p ${PORT}:${PORT} ${DOCKER_IMAGE}:latest"
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline finished successfully!"
+        }
+        failure {
+            echo "Pipeline failed! Перевір логи."
         }
     }
 }
