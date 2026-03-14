@@ -45,6 +45,3 @@ jobs:
       run: |
         docker stop app_new || true
         docker rm app_new || true
-
-    - name: Cleanup Docker
-      run: docker system prune -af
