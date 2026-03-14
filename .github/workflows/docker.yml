@@ -39,7 +39,7 @@ jobs:
 
     - name: Start production container
       run: |
-        docker run -d -p 3000:3000 --name app app:latest --restart unless-stopped my-ap
+        docker run -d -p 3000:3000 --name app app:latest --restart unless-stopped my-app
         
     - name: Remove test container
       run: |
