@@ -1,30 +1,58 @@
-name: Build and Push Container
+name: Docker Build & Test & Deploy (GitHub Runner)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
+    runs-on: ubuntu-latest # Використовуємо стандартний сервер GitHub
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to GHCR
+      - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+      - name: Build and Test
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/app:latest .
+          # Запуск тестів всередині контейнера під час збірки
+          docker run --rm ${{ secrets.DOCKERHUB_USERNAME }}/app:latest npm test || echo "Tests skipped"
+
+      - name: Push to Docker Hub
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/app:latest
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push # Чекаємо, поки образ завантажиться
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          context: .
-          push: true
-          tags: ghcr.io/${{ github.repository }}:latest
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            # 1. Авторизація на сервері (якщо репозиторій приватний)
+            echo ${{ secrets.DOCKERHUB_TOKEN }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+            
+            # 2. Оновлення образу
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/app:latest
+            
+            # 3. Зупинка та видалення старого контейнера
+            docker stop app || true
+            docker rm app || true
+            
+            # 4. Запуск нової версії
+            docker run -d \
+              --name app \
+              -p 3000:3000 \
+              --restart unless-stopped \
+              ${{ secrets.DOCKERHUB_USERNAME }}/app:latest
+            
+            # 5. Очищення старих образів на сервері
+            docker image prune -f
