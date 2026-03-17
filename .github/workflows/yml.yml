@@ -46,4 +46,4 @@ jobs:
             docker stop app || true
             docker rm app || true
             - name: Run new container
-            run: docker run -d -p 3000:3000 --restart-unless-stoped --name app:latest
+            run: docker run -d -p 3000:3000 --restart unless-stopped --name app:latest
