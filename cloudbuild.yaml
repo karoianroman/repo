@@ -1,11 +1,11 @@
 steps:
   # 1. Збірка образу
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'europe-west1-docker.pkg.dev/$PROJECT_ID/my-repo/my-app', '.']
+    args: ['build', '-t', 'europe-west1-docker.pkg.dev/$PROJECT_ID/repo-repository/app', '.']
 
   # 2. Пуш образу в Artifact Registry (без цього деплой не знайде файл)
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'europe-west1-docker.pkg.dev/$PROJECT_ID/my-repo/my-app']
+    args: ['push', 'europe-west1-docker.pkg.dev/$PROJECT_ID/repo-repository/app']
 
   # 3. Оновлення сервісу Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -15,7 +15,7 @@ steps:
       - 'deploy'
       - 'repo'
       - '--image'
-      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/my-repo/my-app'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/repo-repository/app'
       - '--region'
       - 'europe-west1'
 
