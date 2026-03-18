@@ -3,7 +3,7 @@ const express = require('express');
 const app = express();
 
 app.get('/', (req, res) => {
-  res.send('test!');
+  res.send('APP!');
 });
 
 module.exports = app;
