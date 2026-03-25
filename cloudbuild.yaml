@@ -18,6 +18,8 @@ steps:
       - 'europe-west1-docker.pkg.dev/$PROJECT_ID/repo-repository/app'
       - '--region'
       - 'europe-west1'
-
+      - '--port' # Додайте цей аргумент
+      - '3000'   # Вкажіть бажаний порт
+      
 options:
   logging: CLOUD_LOGGING_ONLY
