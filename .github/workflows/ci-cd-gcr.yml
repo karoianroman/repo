@@ -9,6 +9,10 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+  id-token: write
+
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   GCR_HOSTNAME: eu.gcr.io                     # або us.gcr.io / eu.gcr.io / asia.gcr.io
