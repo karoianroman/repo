@@ -122,7 +122,7 @@ jobs:
             docker push "${{ steps.meta.outputs.image_latest }}"
           fi
 
-  # ─────────────────────────────────────────
+    # ─────────────────────────────────────────
   # 3. Деплой у Cloud Run (тільки main)
   # ─────────────────────────────────────────
   deploy:
@@ -147,7 +147,8 @@ jobs:
         with:
           service: ${{ env.SERVICE_NAME }}
           region: ${{ env.REGION }}
-          image: ${{ needs.build-and-push.outputs.image_tag }}
+          # 🔥 ПРЯМЕ ФОРМУВАННЯ ШЛЯХУ (замість outputs):
+          image: ${{ env.GCR_HOSTNAME }}/${{ secrets.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           flags: '--allow-unauthenticated'
 
       - name: Вивести URL задеплоєного сервісу
