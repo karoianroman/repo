@@ -1,4 +1,4 @@
--const app = require('./app');
+const app = require('./app');
 
 // 1. Беремо порт з хмари, якщо його немає — ставимо 3000 для локалу
 const port = process.env.PORT || 3000;
