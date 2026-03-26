@@ -64,12 +64,12 @@ jobs:
       - name: Отримати код
         uses: actions/checkout@v4
 
-      # Автентифікація у GCP через Workload Identity Federation (рекомендовано)
-      - name: Автентифікація у Google Cloud
+            - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}   # projects/123/locations/global/workloadIdentityPools/...
-          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}       # github-actions@PROJECT.iam.gserviceaccount.com
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+          audience: https://iam.googleapis.com/${{ secrets.WIF_PROVIDER }}
 
       # Альтернатива: автентифікація через JSON-ключ (менш безпечно)
       # - name: Автентифікація у Google Cloud (JSON-ключ)
