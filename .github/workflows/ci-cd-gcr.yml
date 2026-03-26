@@ -1,0 +1,148 @@
+name: CI/CD → Google Container Registry
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCR_HOSTNAME: eu.gcr.io                     # або us.gcr.io / eu.gcr.io / asia.gcr.io
+  IMAGE_NAME: app                             # назва вашого образу
+  REGION: europe-west1                        # регіон Cloud Run (якщо використовується)
+  SERVICE_NAME: app-service                   # назва сервісу Cloud Run
+
+jobs:
+  # ─────────────────────────────────────────
+  # 1. Тести
+  # ─────────────────────────────────────────
+  test:
+    name: 🧪 Тести
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Отримати код
+        uses: actions/checkout@v4
+
+      - name: Налаштувати Node.js          # замініть на потрібну мову
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Встановити залежності
+        run: npm ci
+
+      - name: Запустити тести
+        run: npm test
+
+      - name: Запустити лінтер
+        run: npm run lint
+
+  # ─────────────────────────────────────────
+  # 2. Збірка та пуш у GCR
+  # ─────────────────────────────────────────
+  build-and-push:
+    name: 🐳 Збірка та пуш у GCR
+    runs-on: ubuntu-latest
+    needs: test
+    # Тільки при пуші (не для PR)
+    if: github.event_name == 'push'
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+
+    steps:
+      - name: Отримати код
+        uses: actions/checkout@v4
+
+      # Автентифікація у GCP через Workload Identity Federation (рекомендовано)
+      - name: Автентифікація у Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}   # projects/123/locations/global/workloadIdentityPools/...
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}       # github-actions@PROJECT.iam.gserviceaccount.com
+
+      # Альтернатива: автентифікація через JSON-ключ (менш безпечно)
+      # - name: Автентифікація у Google Cloud (JSON-ключ)
+      #   uses: google-github-actions/auth@v2
+      #   with:
+      #     credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Налаштувати Docker для GCR
+        run: gcloud auth configure-docker ${{ env.GCR_HOSTNAME }} --quiet
+
+      # Формуємо тег образу
+      - name: Згенерувати метадані образу
+        id: meta
+        run: |
+          SHORT_SHA=${GITHUB_SHA::8}
+          BRANCH=${GITHUB_REF_NAME//\//-}
+          IMAGE_TAG="${{ env.GCR_HOSTNAME }}/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}"
+
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "image_tag=${IMAGE_TAG}:${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+            echo "image_latest=${IMAGE_TAG}:latest" >> "$GITHUB_OUTPUT"
+            echo "is_main=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "image_tag=${IMAGE_TAG}:${BRANCH}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+            echo "is_main=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Зібрати Docker-образ
+        run: |
+          docker build \
+            --tag "${{ steps.meta.outputs.image_tag }}" \
+            --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+            --build-arg VCS_REF=${{ github.sha }} \
+            --cache-from "${{ env.GCR_HOSTNAME }}/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:latest" \
+            .
+
+      - name: Позначити як latest (тільки гілка main)
+        if: steps.meta.outputs.is_main == 'true'
+        run: |
+          docker tag \
+            "${{ steps.meta.outputs.image_tag }}" \
+            "${{ steps.meta.outputs.image_latest }}"
+
+      - name: Запушити образ у GCR
+        run: |
+          docker push "${{ steps.meta.outputs.image_tag }}"
+          if [[ "${{ steps.meta.outputs.is_main }}" == "true" ]]; then
+            docker push "${{ steps.meta.outputs.image_latest }}"
+          fi
+
+  # ─────────────────────────────────────────
+  # 3. Деплой у Cloud Run (тільки main)
+  # ─────────────────────────────────────────
+  deploy:
+    name: 🚀 Деплой у Cloud Run
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Автентифікація у Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Задеплоїти у Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.REGION }}
+          image: ${{ needs.build-and-push.outputs.image_tag }}
+          flags: '--allow-unauthenticated'   # прибрати для приватного сервісу
+
+      - name: Вивести URL задеплоєного сервісу
+        run: echo "✅ Задеплоєно на ${{ steps.deploy.outputs.url }}"
