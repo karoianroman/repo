@@ -1,4 +1,4 @@
-name: CI/CD → Google Container Registry
+Name: CI/CD → Google Artifact Registry
 
 on:
   push:
@@ -16,7 +16,8 @@ permissions:
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   GCR_HOSTNAME: europe-west1-docker.pkg.dev
-  IMAGE_NAME: ${{ secrets.GCP_PROJECT_ID }}/app/app
+  # ⚠️ Тут ми прибрали PROJECT_ID, залишивши тільки назву репозиторію та образу
+  IMAGE_NAME: app/app
   REGION: europe-west1                        # регіон Cloud Run (якщо використовується)
   SERVICE_NAME: app-service                   # назва сервісу Cloud Run
 
@@ -32,7 +33,7 @@ jobs:
       - name: Отримати код
         uses: actions/checkout@v4
 
-      - name: Налаштувати Node.js          # замініть на потрібну мову
+      - name: Налаштувати Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -48,52 +49,54 @@ jobs:
         run: npm run lint
 
   # ─────────────────────────────────────────
-  # 2. Збірка та пуш у GCR
+  # 2. Збірка та пуш в Artifact Registry
   # ─────────────────────────────────────────
   build-and-push:
-    name: 🐳 Збірка та пуш у GCR
+    name: 🐳 Збірка та пуш в Artifact Registry
     runs-on: ubuntu-latest
     needs: test
-    # Тільки при пуші (не для PR)
     if: github.event_name == 'push'
 
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
+      image_latest: ${{ steps.meta.outputs.image_latest }}
+      is_main: ${{ steps.meta.outputs.is_main }}
 
     steps:
       - name: Отримати код
         uses: actions/checkout@v4
 
       - name: Authenticate to Google Cloud
+        id: auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
-          audience: https://iam.googleapis.com/${{ secrets.WIF_PROVIDER }}
 
-      # Альтернатива: автентифікація через JSON-ключ (менш безпечно)
-      # - name: Автентифікація у Google Cloud (JSON-ключ)
-      #   uses: google-github-actions/auth@v2
-      #   with:
-      #     credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Налаштувати Docker для GCR
+      - name: Налаштувати Docker для GCP
         run: gcloud auth configure-docker ${{ env.GCR_HOSTNAME }} --quiet
 
-      # Формуємо тег образу
+      # 🔥 Тут ми виправляємо регістр PROJECT_ID і збираємо правильний шлях
       - name: Згенерувати метадані образу
         id: meta
         run: |
+          # Переводимо PROJECT_ID в нижній регістр про всяк випадок
+          LOWER_PROJECT=$(echo "${{ env.PROJECT_ID }}" | tr '[:upper:]' '[:lower:]')
+          
           SHORT_SHA=${GITHUB_SHA::8}
           BRANCH=${GITHUB_REF_NAME//\//-}
-          IMAGE_TAG="${{ env.GCR_HOSTNAME }}/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}"
+          
+          # Формуємо базовий шлях БЕЗ дублювання PROJECT_ID
+          BASE_IMAGE="${{ env.GCR_HOSTNAME }}/$LOWER_PROJECT/${{ env.IMAGE_NAME }}"
+          
+          echo "image_base=$BASE_IMAGE" >> "$GITHUB_OUTPUT"
 
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "image_tag=${IMAGE_TAG}:${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-            echo "image_latest=${IMAGE_TAG}:latest" >> "$GITHUB_OUTPUT"
+            echo "image_tag=${BASE_IMAGE}:${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+            echo "image_latest=${BASE_IMAGE}:latest" >> "$GITHUB_OUTPUT"
             echo "is_main=true" >> "$GITHUB_OUTPUT"
           else
-            echo "image_tag=${IMAGE_TAG}:${BRANCH}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+            echo "image_tag=${BASE_IMAGE}:${BRANCH}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
             echo "is_main=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -103,7 +106,6 @@ jobs:
             --tag "${{ steps.meta.outputs.image_tag }}" \
             --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
             --build-arg VCS_REF=${{ github.sha }} \
-            --cache-from "${{ env.GCR_HOSTNAME }}/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:latest" \
             .
 
       - name: Позначити як latest (тільки гілка main)
@@ -113,7 +115,7 @@ jobs:
             "${{ steps.meta.outputs.image_tag }}" \
             "${{ steps.meta.outputs.image_latest }}"
 
-      - name: Запушити образ у GCR
+      - name: Запушити образ в Artifact Registry
         run: |
           docker push "${{ steps.meta.outputs.image_tag }}"
           if [[ "${{ steps.meta.outputs.is_main }}" == "true" ]]; then
@@ -146,7 +148,7 @@ jobs:
           service: ${{ env.SERVICE_NAME }}
           region: ${{ env.REGION }}
           image: ${{ needs.build-and-push.outputs.image_tag }}
-          flags: '--allow-unauthenticated'   # прибрати для приватного сервісу
+          flags: '--allow-unauthenticated'
 
       - name: Вивести URL задеплоєного сервісу
         run: echo "✅ Задеплоєно на ${{ steps.deploy.outputs.url }}"
