@@ -15,8 +15,8 @@ permissions:
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  GCR_HOSTNAME: eu.gcr.io                     # або us.gcr.io / eu.gcr.io / asia.gcr.io
-  IMAGE_NAME: app                             # назва вашого образу
+  GCR_HOSTNAME: europe-west1-docker.pkg.dev
+  IMAGE_NAME: PROJECT_ID/app/app
   REGION: europe-west1                        # регіон Cloud Run (якщо використовується)
   SERVICE_NAME: app-service                   # назва сервісу Cloud Run
 
