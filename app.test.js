@@ -1,4 +1,4 @@
-// app.test.js
+// app.test.js integration test
 const request = require('supertest');
 const app = require('./app');
 
