@@ -1,53 +1,56 @@
-# Cloud-Native Node.js Service
+# Cloud-Native Node.js CI/CD Showcase
 
-A professional boilerplate for deploying secure, containerized **Node.js** applications to **Google Cloud Platform (GCP)** using high-standard **DevSecOps** practices.
+A streamlined demonstration of a professional **CI/CD pipeline** that automates testing, containerization, and deployment of a Node.js service to **Google Cloud Platform (GCP)**.
 
-## 🚀 Overview
+## 🚀 Pipeline Overview
 
-This project demonstrates a streamlined deployment flow for Node.js microservices. It features a fully automated CI/CD pipeline that handles security auditing, image scanning, and serverless hosting on **Cloud Run**.
+This project features a multi-stage **GitHub Actions** workflow designed for reliability and speed. It ensures that only verified code reaches the production environment on **Cloud Run**.
 
 ## 🛠 Tech Stack
 
-- **Runtime:** Node.js
+- **Runtime:** Node.js (v24)
+- **Package Manager:** npm
 - **Cloud Provider:** Google Cloud Platform (Cloud Run, Artifact Registry)
 - **CI/CD:** GitHub Actions
-- **Security:** Gitleaks, Hadolint, Trivy
 - **Auth:** Workload Identity Federation (Keyless)
 
 ---
 
-## 🏗 CI/CD & DevSecOps Pipeline
+## 🏗 CI/CD Workflow Stages
 
-The automation workflow (`ci.yml`) is designed to ensure that no code reaches production without passing strict security and quality checks:
+The pipeline is divided into three distinct jobs to ensure a safe deployment lifecycle:
 
-### 🛡️ Security & Quality Gates
-* **Secret Scanning (Gitleaks):** Checks every commit to prevent accidental leaks of API keys or GCP credentials.
-* **Dockerfile Linting (Hadolint):** Validates the container structure for security, size optimization, and best practices.
-* **Vulnerability Scanning (Trivy):** Scans the final Docker image for known CVEs in the Node.js runtime and dependencies.
+### 🧪 1. Testing Stage (`test`)
+Before building the image, the pipeline validates the source code:
+* **Unit Testing:** Runs `npm test` to verify application logic.
+* **Local Smoke Test:** Launches the server inside the GitHub Runner and uses `curl` to verify that `localhost:3000` is responding. This prevents broken builds from reaching the containerization stage.
 
-### 📦 Deployment Flow
-* **Workload Identity Federation (WIF):** Secure, keyless authentication between GitHub and GCP (OIDC).
-* **Automated Packaging:** Builds and tags the Docker image with the Git SHA, pushing it to **Artifact Registry**.
-* **Serverless Deployment:** Deploys directly to **Cloud Run**, ensuring automated scaling and managed HTTPS.
+### 🐳 2. Build & Registry (`build-and-push`)
+Once tests pass, the application is containerized:
+* **Secure Auth:** Uses **Workload Identity Federation** to interact with GCP without static keys.
+* **Immutable Tagging:** Every image is tagged with the unique **Git SHA**, ensuring perfect traceability between the code and the deployed container.
+* **Artifact Registry:** Stores the production-ready Docker image in a private Google Cloud repository.
 
-### 🔥 Final Verification
-* **Automated Smoke Test:** A post-deployment step that uses `curl` to verify the service is live and responding with HTTP 200.
+### 🚀 3. Deployment (`deploy`)
+* **Conditional Logic:** Deployment only triggers for the `main` branch.
+* **Serverless Hosting:** Automatically updates **Cloud Run** with the latest image.
+* **Public Access:** Configured with `--allow-unauthenticated` for immediate service availability.
 
 ---
 
 ## 🚦 Local Development
 
-### Installation
+### Installation & Test
 ```bash
-npm install
+npm ci
+npm test
 
-Run Locally
+Manual Run
 Bash
 
-npm start
+node server.js
 
-Docker Commands
+Docker Build
 Bash
 
-docker build -t node-cloud-service .
-docker run -p 8080:8080 node-cloud-service
+docker build -t app-service .
